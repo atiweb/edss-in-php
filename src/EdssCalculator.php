@@ -27,50 +27,101 @@ namespace Atiweb\Edss;
 class EdssCalculator
 {
     /**
-     * Calculate the EDSS score.
+     * Default English field names for calculateFromArray().
      *
-     * @param int $visual         Raw Visual (Optic) FS score (0-6)
-     * @param int $brainstem      Brainstem FS score (0-5)
-     * @param int $pyramidal      Pyramidal FS score (0-6)
-     * @param int $cerebellar     Cerebellar FS score (0-5)
-     * @param int $sensory        Sensory FS score (0-6)
-     * @param int $bowelBladder   Raw Bowel & Bladder FS score (0-6)
-     * @param int $cerebral       Cerebral (Mental) FS score (0-5)
-     * @param int $ambulation     Ambulation score (0-16)
+     * These match the parameter names used in the JS reference implementation:
+     *   calculateEDSS(visualFunctionsScore, brainstemFunctionsScore, pyramidalFunctionsScore,
+     *                 cerebellarFunctionsScore, sensoryFunctionsScore, bowelAndBladderFunctionsScore,
+     *                 cerebralFunctionsScore, ambulationScore)
+     */
+    public const FIELDS_DEFAULT = [
+        'visual'       => 'visual_functions_score',
+        'brainstem'    => 'brainstem_functions_score',
+        'pyramidal'    => 'pyramidal_functions_score',
+        'cerebellar'   => 'cerebellar_functions_score',
+        'sensory'      => 'sensory_functions_score',
+        'bowelBladder' => 'bowel_and_bladder_functions_score',
+        'cerebral'     => 'cerebral_functions_score',
+        'ambulation'   => 'ambulation_score',
+    ];
+
+    /**
+     * REDCap/REDONE.br Portuguese field names (legacy).
+     *
+     * Maps the Portuguese field names used in REDCap projects to the
+     * standard Functional System identifiers.
+     *
+     * Portuguese name            → English equivalent
+     * edss_func_visuais          → Visual Functions Score
+     * edss_cap_func_tronco_cereb → Brainstem Functions Score
+     * edss_cap_func_pirad        → Pyramidal Functions Score
+     * edss_cap_func_cereb        → Cerebellar Functions Score
+     * edss_cap_func_sensitivas   → Sensory Functions Score
+     * edss_func_vesicais_e_instestinais → Bowel & Bladder Functions Score
+     * edss_func_cerebrais        → Cerebral Functions Score
+     * edss_func_demabulacao_incapacidade → Ambulation Score
+     */
+    public const FIELDS_REDCAP_PT = [
+        'visual'       => 'edss_func_visuais',                    // Visual Functions Score
+        'brainstem'    => 'edss_cap_func_tronco_cereb',           // Brainstem Functions Score
+        'pyramidal'    => 'edss_cap_func_pirad',                  // Pyramidal Functions Score
+        'cerebellar'   => 'edss_cap_func_cereb',                  // Cerebellar Functions Score
+        'sensory'      => 'edss_cap_func_sensitivas',             // Sensory Functions Score
+        'bowelBladder' => 'edss_func_vesicais_e_instestinais',    // Bowel & Bladder Functions Score
+        'cerebral'     => 'edss_func_cerebrais',                  // Cerebral Functions Score
+        'ambulation'   => 'edss_func_demabulacao_incapacidade',   // Ambulation Score
+    ];
+
+    /**
+     * Calculate the EDSS score from individual Functional System scores.
+     *
+     * Parameter names match the JS reference: calculateEDSS(visualFunctionsScore,
+     * brainstemFunctionsScore, pyramidalFunctionsScore, cerebellarFunctionsScore,
+     * sensoryFunctionsScore, bowelAndBladderFunctionsScore, cerebralFunctionsScore,
+     * ambulationScore)
+     *
+     * @param int $visualFunctionsScore              Raw Visual (Optic) FS score (0-6)
+     * @param int $brainstemFunctionsScore            Brainstem FS score (0-5)
+     * @param int $pyramidalFunctionsScore            Pyramidal FS score (0-6)
+     * @param int $cerebellarFunctionsScore           Cerebellar FS score (0-5)
+     * @param int $sensoryFunctionsScore              Sensory FS score (0-6)
+     * @param int $bowelAndBladderFunctionsScore      Raw Bowel & Bladder FS score (0-6)
+     * @param int $cerebralFunctionsScore             Cerebral (Mental) FS score (0-5)
+     * @param int $ambulationScore                    Ambulation score (0-16)
      *
      * @return string The calculated EDSS score (e.g., '0', '1.5', '4', '6.5', '10')
      */
     public function calculate(
-        int $visual,
-        int $brainstem,
-        int $pyramidal,
-        int $cerebellar,
-        int $sensory,
-        int $bowelBladder,
-        int $cerebral,
-        int $ambulation,
+        int $visualFunctionsScore,
+        int $brainstemFunctionsScore,
+        int $pyramidalFunctionsScore,
+        int $cerebellarFunctionsScore,
+        int $sensoryFunctionsScore,
+        int $bowelAndBladderFunctionsScore,
+        int $cerebralFunctionsScore,
+        int $ambulationScore,
     ): string {
         // ─── Phase 1: Ambulation-driven EDSS (≥ 5.0) ───
         // Ambulation score directly determines EDSS for scores ≥ 3
-        $ambulationEdss = $this->getAmbulationEdss($ambulation);
+        $ambulationEdss = $this->getAmbulationEdss($ambulationScore);
         if ($ambulationEdss !== null) {
             return $ambulationEdss;
         }
 
         // ─── Phase 2: FS-driven EDSS (0 – 5.0) ───
         // Convert Visual and Bowel/Bladder scores to their adjusted ranges
-        $convertedVisual = self::convertVisualScore($visual);
-        $convertedBowelBladder = self::convertBowelAndBladderScore($bowelBladder);
+        $convertedVisual = self::convertVisualScore($visualFunctionsScore);
+        $convertedBowelBladder = self::convertBowelAndBladderScore($bowelAndBladderFunctionsScore);
 
-        // Build the 7 FS array
+        // Build the 7 FS array (order: Visual, Brainstem, Pyramidal, Cerebellar, Sensory, BB, Cerebral)
         $functionalSystems = [
             $convertedVisual,
-            $brainstem,
-            $pyramidal,
-            $cerebellar,
-            $sensory,
+            $brainstemFunctionsScore,
+            $pyramidalFunctionsScore,
+            $cerebellarFunctionsScore,
+            $sensoryFunctionsScore,
             $convertedBowelBladder,
-            $cerebral,
+            $cerebralFunctionsScore,
         ];
 
         [$maxValue, $maxCount] = self::findMaxAndCount($functionalSystems);
@@ -79,39 +130,56 @@ class EdssCalculator
             $functionalSystems,
             $maxValue,
             $maxCount,
-            $ambulation,
+            $ambulationScore,
         );
     }
 
     /**
-     * Calculate EDSS from an associative array (e.g., from REDCap data).
+     * Calculate EDSS from an associative array using custom field mapping.
      *
-     * Expected keys:
-     *   - edss_func_visuais{suffix}
-     *   - edss_cap_func_tronco_cereb{suffix}
-     *   - edss_cap_func_pirad{suffix}
-     *   - edss_cap_func_cereb{suffix}
-     *   - edss_cap_func_sensitivas{suffix}
-     *   - edss_func_vesicais_e_instestinais{suffix}
-     *   - edss_func_cerebrais{suffix}
-     *   - edss_func_demabulacao_incapacidade{suffix}
+     * By default uses English field names (FIELDS_DEFAULT). You can pass
+     * FIELDS_REDCAP_PT for Portuguese REDCap field names, or your own mapping.
      *
-     * @param array<string, string|int> $data   Associative array with EDSS field values
-     * @param string $suffix                     Optional suffix (e.g., '_long' for longitudinal)
+     * @param array<string, string|int> $data       Associative array with FS score values
+     * @param array<string, string>     $fieldMap   Field name mapping (default: FIELDS_DEFAULT)
+     * @param string                    $suffix     Optional suffix appended to field names (e.g., '_long')
      *
      * @return string|null The calculated EDSS score, or null if data is incomplete
+     *
+     * @example Using default English field names:
+     *   $data = ['visual_functions_score' => '1', 'brainstem_functions_score' => '2', ...];
+     *   $calculator->calculateFromArray($data);
+     *
+     * @example Using REDCap Portuguese field names:
+     *   $data = ['edss_func_visuais' => '1', 'edss_cap_func_tronco_cereb' => '2', ...];
+     *   $calculator->calculateFromArray($data, EdssCalculator::FIELDS_REDCAP_PT);
+     *
+     * @example Using custom field names:
+     *   $calculator->calculateFromArray($data, [
+     *       'visual'       => 'my_visual_field',
+     *       'brainstem'    => 'my_brainstem_field',
+     *       'pyramidal'    => 'my_pyramidal_field',
+     *       'cerebellar'   => 'my_cerebellar_field',
+     *       'sensory'      => 'my_sensory_field',
+     *       'bowelBladder' => 'my_bowel_bladder_field',
+     *       'cerebral'     => 'my_cerebral_field',
+     *       'ambulation'   => 'my_ambulation_field',
+     *   ]);
      */
-    public function calculateFromArray(array $data, string $suffix = ''): ?string
-    {
+    public function calculateFromArray(
+        array $data,
+        array $fieldMap = self::FIELDS_DEFAULT,
+        string $suffix = '',
+    ): ?string {
         $fields = [
-            'visual'       => 'edss_func_visuais' . $suffix,
-            'brainstem'    => 'edss_cap_func_tronco_cereb' . $suffix,
-            'pyramidal'    => 'edss_cap_func_pirad' . $suffix,
-            'cerebellar'   => 'edss_cap_func_cereb' . $suffix,
-            'sensory'      => 'edss_cap_func_sensitivas' . $suffix,
-            'bowelBladder' => 'edss_func_vesicais_e_instestinais' . $suffix,
-            'cerebral'     => 'edss_func_cerebrais' . $suffix,
-            'ambulation'   => 'edss_func_demabulacao_incapacidade' . $suffix,
+            'visual'       => $fieldMap['visual'] . $suffix,
+            'brainstem'    => $fieldMap['brainstem'] . $suffix,
+            'pyramidal'    => $fieldMap['pyramidal'] . $suffix,
+            'cerebellar'   => $fieldMap['cerebellar'] . $suffix,
+            'sensory'      => $fieldMap['sensory'] . $suffix,
+            'bowelBladder' => $fieldMap['bowelBladder'] . $suffix,
+            'cerebral'     => $fieldMap['cerebral'] . $suffix,
+            'ambulation'   => $fieldMap['ambulation'] . $suffix,
         ];
 
         $values = [];
@@ -178,44 +246,44 @@ class EdssCalculator
     }
 
     /**
-     * Get the EDSS score determined directly by ambulation (for scores ≥ 3).
+     * Get the EDSS score determined directly by ambulation (for ambulationScore ≥ 3).
      *
      * @return string|null The EDSS score, or null if ambulation doesn't directly determine it
      */
-    private function getAmbulationEdss(int $ambulation): ?string
+    private function getAmbulationEdss(int $ambulationScore): ?string
     {
         return match (true) {
-            $ambulation === 16 => '10',    // Death due to MS
-            $ambulation === 15 => '9.5',   // Totally helpless bed patient
-            $ambulation === 14 => '9',     // Helpless bed patient; can communicate and eat
-            $ambulation === 13 => '8.5',   // Restricted to bed; some use of arm(s)
-            $ambulation === 12 => '8',     // Restricted to bed/chair, out of bed most of day
-            $ambulation === 11 => '7.5',   // Wheelchair with help
-            $ambulation === 10 => '7',     // Wheelchair without help
-            $ambulation === 9,
-            $ambulation === 8  => '6.5',   // Bilateral assistance or limited walking
-            $ambulation === 7,
-            $ambulation === 6,
-            $ambulation === 5  => '6',     // Unilateral/bilateral assistance ≥120m
-            $ambulation === 4  => '5.5',   // Walks 100-200m without help
-            $ambulation === 3  => '5',     // Walks 200-300m without help
-            default => null,               // FS-driven EDSS (ambulation 0-2)
+            $ambulationScore === 16 => '10',    // Death due to MS
+            $ambulationScore === 15 => '9.5',   // Totally helpless bed patient
+            $ambulationScore === 14 => '9',     // Helpless bed patient; can communicate and eat
+            $ambulationScore === 13 => '8.5',   // Restricted to bed; some use of arm(s)
+            $ambulationScore === 12 => '8',     // Restricted to bed/chair, out of bed most of day
+            $ambulationScore === 11 => '7.5',   // Wheelchair with help
+            $ambulationScore === 10 => '7',     // Wheelchair without help
+            $ambulationScore === 9,
+            $ambulationScore === 8  => '6.5',   // Bilateral assistance or limited walking
+            $ambulationScore === 7,
+            $ambulationScore === 6,
+            $ambulationScore === 5  => '6',     // Unilateral/bilateral assistance ≥120m
+            $ambulationScore === 4  => '5.5',   // Walks 100-200m without help
+            $ambulationScore === 3  => '5',     // Walks 200-300m without help
+            default => null,                     // FS-driven EDSS (ambulationScore 0-2)
         };
     }
 
     /**
      * Calculate EDSS from FS scores when ambulation is 0-2 (Phase 2).
      *
-     * @param array<int> $fs          The 7 functional system scores (already converted)
-     * @param int        $maxValue    Maximum value among FS scores
-     * @param int        $maxCount    Number of FS scores equal to maxValue
-     * @param int        $ambulation  Ambulation score (0-2)
+     * @param array<int> $functionalSystems  The 7 FS scores (already converted)
+     * @param int        $maxValue           Maximum value among FS scores
+     * @param int        $maxCount           Number of FS scores equal to maxValue
+     * @param int        $ambulationScore    Ambulation score (0-2)
      */
     private function calculateFromFunctionalSystems(
-        array $fs,
+        array $functionalSystems,
         int $maxValue,
         int $maxCount,
-        int $ambulation,
+        int $ambulationScore,
     ): string {
         // ── EDSS 5.0: FS-based ──
         if ($maxValue >= 5) {
@@ -227,7 +295,7 @@ class EdssCalculator
         }
 
         if ($maxValue === 4 && $maxCount === 1) {
-            [$secondMax, $secondCount] = self::findSecondMaxAndCount($fs, $maxValue);
+            [$secondMax, $secondCount] = self::findSecondMaxAndCount($functionalSystems, $maxValue);
 
             if ($secondMax === 3 && $secondCount > 2) {
                 return '5';
@@ -235,7 +303,7 @@ class EdssCalculator
             if ($secondMax === 3 || $secondMax === 2) {
                 return '4.5';
             }
-            if ($ambulation < 2 && $secondMax < 2) {
+            if ($ambulationScore < 2 && $secondMax < 2) {
                 return '4';
             }
         }
@@ -246,7 +314,7 @@ class EdssCalculator
         }
 
         // ── EDSS 4.5: Ambulation = 2 ──
-        if ($ambulation === 2) {
+        if ($ambulationScore === 2) {
             return '4.5';
         }
 
@@ -258,7 +326,7 @@ class EdssCalculator
 
             if ($maxCount >= 2) {
                 if ($maxCount === 2) {
-                    [$secondMax] = self::findSecondMaxAndCount($fs, $maxValue);
+                    [$secondMax] = self::findSecondMaxAndCount($functionalSystems, $maxValue);
                     if ($secondMax <= 1) {
                         return '3.5';
                     }
@@ -268,7 +336,7 @@ class EdssCalculator
             }
 
             // maxCount is 1
-            [$secondMax, $secondCount] = self::findSecondMaxAndCount($fs, $maxValue);
+            [$secondMax, $secondCount] = self::findSecondMaxAndCount($functionalSystems, $maxValue);
 
             if ($secondMax === 2) {
                 if ($secondCount >= 3) {
@@ -301,7 +369,7 @@ class EdssCalculator
         }
 
         // ── EDSS 2.0: Ambulation = 1 ──
-        if ($ambulation === 1) {
+        if ($ambulationScore === 1) {
             return '2';
         }
 

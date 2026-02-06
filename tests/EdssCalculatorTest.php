@@ -61,20 +61,72 @@ class EdssCalculatorTest extends TestCase
         $this->assertSame([0, 0], EdssCalculator::findSecondMaxAndCount([3, 3, 3], 3));
     }
 
-    // ─── calculateFromArray ──────────────────────────────────────
+    // ─── calculateFromArray with default English fields ─────────
 
     public function testCalculateFromArrayReturnsNullOnIncompleteData(): void
     {
         $this->assertNull($this->calculator->calculateFromArray([]));
         $this->assertNull($this->calculator->calculateFromArray([
-            'edss_func_visuais' => '0',
-            'edss_cap_func_tronco_cereb' => '0',
+            'visual_functions_score' => '0',
+            'brainstem_functions_score' => '0',
             // missing fields
         ]));
     }
 
+    public function testCalculateFromArrayWithDefaultEnglishFields(): void
+    {
+        $data = [
+            'visual_functions_score' => '1',
+            'brainstem_functions_score' => '2',
+            'pyramidal_functions_score' => '1',
+            'cerebellar_functions_score' => '3',
+            'sensory_functions_score' => '1',
+            'bowel_and_bladder_functions_score' => '4',
+            'cerebral_functions_score' => '2',
+            'ambulation_score' => '1',
+        ];
+
+        // Same as reference example: calculateEDSS(1,2,1,3,1,4,2,1) → 4
+        $this->assertSame('4', $this->calculator->calculateFromArray($data));
+    }
+
+    public function testCalculateFromArrayWithRedcapPortugueseFields(): void
+    {
+        $data = [
+            'edss_func_visuais' => '1',                       // Visual Functions Score
+            'edss_cap_func_tronco_cereb' => '2',              // Brainstem Functions Score
+            'edss_cap_func_pirad' => '1',                     // Pyramidal Functions Score
+            'edss_cap_func_cereb' => '3',                     // Cerebellar Functions Score
+            'edss_cap_func_sensitivas' => '1',                // Sensory Functions Score
+            'edss_func_vesicais_e_instestinais' => '4',       // Bowel & Bladder Functions Score
+            'edss_func_cerebrais' => '2',                     // Cerebral Functions Score
+            'edss_func_demabulacao_incapacidade' => '1',      // Ambulation Score
+        ];
+
+        // Same as reference example: calculateEDSS(1,2,1,3,1,4,2,1) → 4
+        $this->assertSame('4', $this->calculator->calculateFromArray($data, EdssCalculator::FIELDS_REDCAP_PT));
+    }
+
     public function testCalculateFromArrayWithSuffix(): void
     {
+        // Using default English fields with a suffix
+        $data = [
+            'visual_functions_score_long' => '0',
+            'brainstem_functions_score_long' => '0',
+            'pyramidal_functions_score_long' => '0',
+            'cerebellar_functions_score_long' => '0',
+            'sensory_functions_score_long' => '0',
+            'bowel_and_bladder_functions_score_long' => '0',
+            'cerebral_functions_score_long' => '0',
+            'ambulation_score_long' => '0',
+        ];
+
+        $this->assertSame('0', $this->calculator->calculateFromArray($data, suffix: '_long'));
+    }
+
+    public function testCalculateFromArrayWithRedcapSuffix(): void
+    {
+        // Using REDCap Portuguese fields with a suffix
         $data = [
             'edss_func_visuais_long' => '0',
             'edss_cap_func_tronco_cereb_long' => '0',
@@ -86,24 +138,36 @@ class EdssCalculatorTest extends TestCase
             'edss_func_demabulacao_incapacidade_long' => '0',
         ];
 
-        $this->assertSame('0', $this->calculator->calculateFromArray($data, '_long'));
+        $this->assertSame('0', $this->calculator->calculateFromArray($data, EdssCalculator::FIELDS_REDCAP_PT, '_long'));
     }
 
-    public function testCalculateFromArrayWithStringValues(): void
+    public function testCalculateFromArrayWithCustomFieldMap(): void
     {
-        $data = [
-            'edss_func_visuais' => '1',
-            'edss_cap_func_tronco_cereb' => '2',
-            'edss_cap_func_pirad' => '1',
-            'edss_cap_func_cereb' => '3',
-            'edss_cap_func_sensitivas' => '1',
-            'edss_func_vesicais_e_instestinais' => '4',
-            'edss_func_cerebrais' => '2',
-            'edss_func_demabulacao_incapacidade' => '1',
+        // Users can define their own field mappings
+        $customFields = [
+            'visual'       => 'fs_visual',
+            'brainstem'    => 'fs_brainstem',
+            'pyramidal'    => 'fs_pyramidal',
+            'cerebellar'   => 'fs_cerebellar',
+            'sensory'      => 'fs_sensory',
+            'bowelBladder' => 'fs_bowel_bladder',
+            'cerebral'     => 'fs_cerebral',
+            'ambulation'   => 'fs_ambulation',
         ];
 
-        // Same as reference example: calculateEDSS(1,2,1,3,1,4,2,1) → 4
-        $this->assertSame('4', $this->calculator->calculateFromArray($data));
+        $data = [
+            'fs_visual' => '0',
+            'fs_brainstem' => '0',
+            'fs_pyramidal' => '2',
+            'fs_cerebellar' => '0',
+            'fs_sensory' => '0',
+            'fs_bowel_bladder' => '0',
+            'fs_cerebral' => '2',
+            'fs_ambulation' => '0',
+        ];
+
+        // Two FS=2 → EDSS 2.5
+        $this->assertSame('2.5', $this->calculator->calculateFromArray($data, $customFields));
     }
 
     // ─── EDSS Calculation (parametrized) ─────────────────────────
@@ -215,33 +279,35 @@ class EdssCalculatorTest extends TestCase
 
     #[DataProvider('edssDataProvider')]
     public function testEdssCalculation(
-        int $visual,
-        int $brainstem,
-        int $pyramidal,
-        int $cerebellar,
-        int $sensory,
-        int $bowelBladder,
-        int $cerebral,
-        int $ambulation,
+        int $visualFunctionsScore,
+        int $brainstemFunctionsScore,
+        int $pyramidalFunctionsScore,
+        int $cerebellarFunctionsScore,
+        int $sensoryFunctionsScore,
+        int $bowelAndBladderFunctionsScore,
+        int $cerebralFunctionsScore,
+        int $ambulationScore,
         string $expected,
     ): void {
         $result = $this->calculator->calculate(
-            $visual,
-            $brainstem,
-            $pyramidal,
-            $cerebellar,
-            $sensory,
-            $bowelBladder,
-            $cerebral,
-            $ambulation,
+            $visualFunctionsScore,
+            $brainstemFunctionsScore,
+            $pyramidalFunctionsScore,
+            $cerebellarFunctionsScore,
+            $sensoryFunctionsScore,
+            $bowelAndBladderFunctionsScore,
+            $cerebralFunctionsScore,
+            $ambulationScore,
         );
 
         $this->assertSame(
             $expected,
             $result,
             sprintf(
-                'EDSS mismatch for Vis=%d BS=%d Pyr=%d Cer=%d Sen=%d BB=%d Men=%d Amb=%d: expected %s, got %s',
-                $visual, $brainstem, $pyramidal, $cerebellar, $sensory, $bowelBladder, $cerebral, $ambulation,
+                'EDSS mismatch for Visual=%d Brainstem=%d Pyramidal=%d Cerebellar=%d Sensory=%d BowelBladder=%d Cerebral=%d Ambulation=%d: expected %s, got %s',
+                $visualFunctionsScore, $brainstemFunctionsScore, $pyramidalFunctionsScore,
+                $cerebellarFunctionsScore, $sensoryFunctionsScore, $bowelAndBladderFunctionsScore,
+                $cerebralFunctionsScore, $ambulationScore,
                 $expected, $result,
             ),
         );
