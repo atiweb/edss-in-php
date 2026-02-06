@@ -171,6 +171,14 @@ The library includes built-in constants for field name mappings:
 
 You can also pass your own `array<string, string>` mapping to `calculateFromArray()`.
 
+## Other implementations
+
+| Language | Repository |
+|----------|------------|
+| JavaScript | [atiweb/edss](https://github.com/atiweb/edss) |
+| Kotlin | [atiweb/edss-in-kotlin](https://github.com/atiweb/edss-in-kotlin) |
+| Flutter/Dart | [atiweb/edss-in-flutter](https://github.com/atiweb/edss-in-flutter) |
+
 ## Testing
 
 ```bash
