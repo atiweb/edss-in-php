@@ -185,7 +185,7 @@ class EdssCalculator
         $values = [];
         foreach ($fields as $key => $fieldName) {
             $value = $data[$fieldName] ?? '';
-            if (strlen((string) $value) === 0) {
+            if ((string) $value === '') {
                 return null; // Incomplete data
             }
             $values[$key] = (int) $value;
@@ -411,7 +411,7 @@ class EdssCalculator
     {
         $filtered = array_filter($scores, fn(int $v): bool => $v < $max);
 
-        if (empty($filtered)) {
+        if ($filtered === []) {
             return [0, 0];
         }
 
